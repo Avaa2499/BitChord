@@ -121,7 +121,7 @@ internal object DesktopBrowserCookies {
     private fun readFirefox(database: Path): Result = query(database) { connection ->
         val cookies = LinkedHashMap<String, String>()
         connection.prepareStatement(
-            "SELECT name, value FROM moz_cookies WHERE host LIKE '%youtube.com'",
+            "SELECT name, value FROM moz_cookies WHERE host LIKE '%youtube.com' AND originAttributes = ''",
         ).use { statement ->
             statement.executeQuery().use { rows ->
                 while (rows.next()) {
