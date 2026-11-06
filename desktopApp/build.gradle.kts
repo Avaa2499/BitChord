@@ -548,6 +548,7 @@ val appImage by tasks.registering(Exec::class) {
     inputs.dir(appDir)
     outputs.file(outputFile)
     doFirst { outputDir.get().asFile.mkdirs() }
+    environment("ARCH", "x86_64")
     commandLine(
         "appimagetool",
         "--updateinformation",
