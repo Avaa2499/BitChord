@@ -468,6 +468,96 @@ val windowsPortable by tasks.registering(Zip::class) {
     doLast { logger.lifecycle("windowsPortable: ${archiveFile.get().asFile.absolutePath}") }
 }
 
+/** The AppImage staging tree (an "AppDir") built from Compose's own app-image output. */
+val appImageDir = layout.buildDirectory.dir("appimage/BitChord.AppDir")
+
+/**
+ * Lays out an AppDir around `createDistributable`'s output: an `AppRun` entry point, a
+ * `.desktop` file and a top-level icon, which is all `appimagetool` needs.
+ */
+val appImageAssemble by tasks.registering {
+    group = "distribution"
+    description = "Builds the AppDir that appimagetool packages into an AppImage."
+    val distributable = tasks.named("createDistributable")
+    dependsOn(distributable)
+    val sourceDir = distributable.map { it.outputs.files.singleFile.resolve("BitChord") }
+    val target = appImageDir
+    val version = appVersion
+    inputs.dir(sourceDir)
+    inputs.property("version", version)
+    outputs.dir(target)
+    doLast {
+        val appDir = target.get().asFile
+        appDir.deleteRecursively()
+        appDir.mkdirs()
+        sourceDir.get().copyRecursively(appDir, overwrite = true)
+
+        File(appDir, "AppRun").apply {
+            writeText(
+                """
+                #!/bin/sh
+                HERE="$(dirname "$(readlink -f "${'$'}0")")"
+                exec "${'$'}HERE/bin/BitChord" "${'$'}@"
+                """.trimIndent() + "\n",
+            )
+            setExecutable(true)
+        }
+
+        File(appDir, "bitchord.desktop").writeText(
+            """
+            [Desktop Entry]
+            Type=Application
+            Name=BitChord
+            Comment=Aesthetic YouTube Music client
+            Exec=AppRun %U
+            Icon=bitchord
+            Categories=AudioVideo;Audio;Player;
+            Terminal=false
+            X-AppImage-Version=$version
+            """.trimIndent() + "\n",
+        )
+
+        // jpackage's own app-image already carries this at lib/BitChord.png; appimagetool wants
+        // it (and a .DirIcon copy) at the AppDir root, named after the .desktop file's Icon key.
+        val sourceIcon = File(appDir, "lib/BitChord.png")
+        check(sourceIcon.isFile) { "expected jpackage's icon at ${sourceIcon.absolutePath}" }
+        sourceIcon.copyTo(File(appDir, "bitchord.png"), overwrite = true)
+        sourceIcon.copyTo(File(appDir, ".DirIcon"), overwrite = true)
+    }
+}
+
+val appImage by tasks.registering(Exec::class) {
+    group = "distribution"
+    description = "Packages the AppDir into a self-updating AppImage, for Gearlever to manage."
+    dependsOn(appImageAssemble)
+    onlyIf {
+        val tool = findOnPath("appimagetool")
+        if (tool == null) {
+            logger.error(
+                "appimagetool not found on PATH. Install it from " +
+                    "https://github.com/AppImage/appimagetool/releases (continuous build, " +
+                    "appimagetool-x86_64.AppImage) and make sure it's executable and on PATH.",
+            )
+        }
+        tool != null
+    }
+    val appDir = appImageDir
+    val version = appVersion
+    val outputDir = layout.buildDirectory.dir("distributions")
+    val outputFile = outputDir.map { it.file("BitChord-$version-x86_64.AppImage") }
+    inputs.dir(appDir)
+    outputs.file(outputFile)
+    doFirst { outputDir.get().asFile.mkdirs() }
+    commandLine(
+        "appimagetool",
+        "--updateinformation",
+        "gh-releases-zsync|Avaa2499|BitChord|latest|BitChord-*-x86_64.AppImage.zsync",
+        appDir.get().asFile.absolutePath,
+        outputFile.get().asFile.absolutePath,
+    )
+    doLast { logger.lifecycle("appImage: ${outputFile.get().asFile.absolutePath}") }
+}
+
 val composeMainClass = "com.music.bitchord.desktop.MainKt"
 
 compose.desktop {
