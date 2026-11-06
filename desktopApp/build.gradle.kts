@@ -500,7 +500,7 @@ val appImageAssemble by tasks.registering {
                 exec "${'$'}HERE/bin/BitChord" "${'$'}@"
                 """.trimIndent() + "\n",
             )
-            setExecutable(true)
+            setExecutable(true, false)
         }
 
         File(appDir, "bitchord.desktop").writeText(
