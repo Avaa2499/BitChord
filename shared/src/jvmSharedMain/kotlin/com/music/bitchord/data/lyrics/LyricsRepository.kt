@@ -51,13 +51,15 @@ import java.util.concurrent.ConcurrentHashMap
  * [BiniLyrics] is also the one that hands them out, reporting the ISRC of
  * whatever its own search matched.
  *
- * So the recording is settled *before* anybody is asked for words: one small
- * search against [BiniLyrics], whose answer is a name every other source can
- * use. It costs a round trip at the head of the lookup, which is why it is
- * capped at [IDENTIFY_TIMEOUT_MS] and why its result is kept against the video
- * id — a track asked about twice pays for this once. A downloaded or local file
- * can skip it entirely: its own tags name the recording, which is what the
- * [isrc] parameter is for.
+ * So the recording is settled by one small search against [BiniLyrics],
+ * whose answer is a name every other source can use. It runs *alongside* the
+ * sources that don't need it rather than ahead of all of them — only
+ * [LrcRed], [BiniLyrics] and [LyricsPlus] actually wait on it, each awaiting
+ * the same identify job rather than starting a second one. It is still
+ * capped at [IDENTIFY_TIMEOUT_MS], and its result is kept against the video
+ * id — a track asked about twice pays for this once. A downloaded or local
+ * file can skip it entirely: its own tags name the recording, which is what
+ * the [isrc] parameter is for.
  *
  * Only run when the user has [LyricsSource.BINI_LYRICS] enabled. It is a
  * request to a third party like any other, and a source somebody has turned off
@@ -114,16 +116,16 @@ object LyricsRepository {
         val searchTitle = title.forLyricsSearch()
         val searchArtist = artist.artistForLyricsSearch()
 
-        // Settled before anyone is asked for words, so every source that can
-        // name the recording does. What the caller knows beats what we worked
-        // out last time, and both beat asking again.
+        // What the caller knows beats what we worked out last time, and both
+        // beat asking again. Only started if something still needs it, and
+        // run alongside everything else rather than ahead of it — see
+        // [NEEDS_RECORDING].
         val known = isrc?.takeIf { it.isNotBlank() } ?: isrcs[videoId]
-        val hit = if (known == null) {
-            identify(videoId, searchTitle, searchArtist, durationMs, album, sequence)
+        val identifyJob: Deferred<BiniLyrics.Hit?>? = if (known == null && LyricsSource.BINI_LYRICS in sequence) {
+            async(Dispatchers.IO) { identify(videoId, searchTitle, searchArtist, durationMs, album, sequence) }
         } else {
             null
         }
-        val recording = known ?: hit?.isrc?.takeIf { it.isNotBlank() }
         val documents = SharedDocuments(this)
 
         // Genius is a plain text web scraper. To preserve bandwidth and avoid rate-limiting,
@@ -133,6 +135,8 @@ object LyricsRepository {
             source to async(Dispatchers.IO, start = startMode) {
                 onSourceStarted?.invoke(source)
                 try {
+                    val hit = if (source in NEEDS_RECORDING) identifyJob?.await() else null
+                    val recording = known ?: hit?.isrc?.takeIf { it.isNotBlank() }
                     val found = fetch(
                         source,
                         videoId,
@@ -174,9 +178,13 @@ object LyricsRepository {
             // Whoever lost the race is no longer worth waiting on, and
             // coroutineScope will not return while they are still running.
             racing.forEach { it.second.cancel() }
+            identifyJob?.cancel()
             documents.cancel()
         }
     }
+
+    /** Sources that wait on [identifyJob] rather than starting right away. */
+    private val NEEDS_RECORDING = setOf(LyricsSource.LRC_RED, LyricsSource.BINI_LYRICS, LyricsSource.LYRICS_PLUS)
 
     private suspend fun fetch(
         source: LyricsSource,
@@ -238,7 +246,8 @@ object LyricsRepository {
     private const val IDENTIFY_TIMEOUT_MS = 2_500L
 
     /**
-     * The one request made before the race: which recording is this?
+     * The one request made alongside the race, not ahead of it: which
+     * recording is this?
      *
      * Skipped entirely when the source that answers it is switched off, and
      * given up on rather than waited out — see [IDENTIFY_TIMEOUT_MS]. What it
