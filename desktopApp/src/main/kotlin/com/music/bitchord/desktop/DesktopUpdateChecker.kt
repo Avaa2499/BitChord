@@ -35,7 +35,7 @@ internal object DesktopUpdateChecker {
     private const val LATEST_RELEASE_URL =
         "https://api.github.com/repos/Avaa2499/BitChord/releases/latest"
 
-    val currentVersion: String = System.getProperty("bitchord.version") ?: "1.8-beta1"
+    val currentVersion: String = System.getProperty("bitchord.version") ?: "2.0.0"
 
     private val json = Json { ignoreUnknownKeys = true }
 

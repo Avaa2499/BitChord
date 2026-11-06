@@ -9,3 +9,4 @@
 - Want in-app "Update" button to self-update (AppImage update-information metadata).
 - Do not reach for a bundled full Chromium/JCEF for the PO-token/BotGuard problem — rejected as too heavy. Prefer GraalJS/Node + bgutils-js-style polyfill instead of JavaFX WebEngine.
 - Branch merging of upstream's many branches into one: deferred, not current work.
+- **Versioning follows semver from v2.0.0 on**: Major = breaking release, users must manually redownload (no silent in-place update expected). Minor = feature update. Patch = small bugfix/config tweak. Bump `appVersion`'s fallback in `desktopApp/build.gradle.kts` and `DesktopUpdateChecker.currentVersion`'s fallback together, same value, every release.
