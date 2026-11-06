@@ -991,9 +991,9 @@ fun BitChordDesktopApp() {
     fun addToQueue(song: Song) = enqueue(song, next = false)
 
     /** Starts the station YouTube Music builds around one track. */
-    fun startRadio(song: Song) {
+    fun startRadio(song: Song, source: DesktopQueueSource? = null) {
         if (partyTrackChangeBlocked()) return
-        val seed = canonicalSong(song).copy(radioName = song.title)
+        val seed = canonicalSong(song).copy(radioName = song.title).withSource(source)
         scope.launch {
             // AutoPlay's section behind the seed, as the phone queues a station — which is also
             // what lets a party share it: a context tail is never published.
@@ -1977,8 +1977,11 @@ fun BitChordDesktopApp() {
         val browseId = item.browseId
         when {
             videoId != null -> {
+                // A song picked off a home card or shelf starts a station, matching the phone —
+                // see [startRadio]'s doc. Tapping "Shut Up and Drive" in Recents otherwise just
+                // queued that one track with nothing behind it.
                 val source = shelfTitle?.let { DesktopQueueSource(it, PlaybackSourceType.HOME) }
-                playSong(item.toSong(), source = source)
+                startRadio(item.toSong(), source)
             }
             // An artist is a page of its own, not a list of tracks with a photograph on top.
             browseTypeOf(browseId.orEmpty()) == BrowseType.ARTIST ->
