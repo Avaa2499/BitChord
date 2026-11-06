@@ -13,6 +13,7 @@ import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.settings.AudioQuality
 import com.music.bitchord.data.settings.LastPlayerScreen
 import com.music.bitchord.data.settings.MixBlend
+import com.music.bitchord.data.settings.MixTransitionView
 import com.music.bitchord.data.settings.SmartAnalysis
 import com.music.bitchord.data.settings.TransitionWindow
 import com.music.bitchord.ui.player.AudioOutputDevice
@@ -185,7 +186,16 @@ internal object DesktopPlayerSettings : PlayerSettingsSource {
     override val canvasOverCellular = MutableStateFlow(true)
     override val fullBleedArtwork = MutableStateFlow(false)
     override val hideSongStatus = MutableStateFlow(false)
+    override val showQueueHistory = MutableStateFlow(true)
     override val hideVolumeBar = MutableStateFlow(false)
+    // A desktop never swaps to a watch's cap — there is no watch.
+    override val streamCeilingOverride = MutableStateFlow<AudioQuality?>(null)
+    // Status bar hiding is a mobile-only concept; the desktop window has none.
+    override val hideStatusBar = MutableStateFlow(false)
+    override val showListenTogetherButton = MutableStateFlow(true)
+    override val automixDetail = MutableStateFlow<String?>(null)
+    override val smartMixView = MutableStateFlow<MixTransitionView?>(null)
+    override val smartMixProgress = MutableStateFlow(0f)
     override val lastPlayerScreen = MutableStateFlow(
         runCatching { LastPlayerScreen.valueOf(persistence.string(KEY_LAST_SCREEN, "MAIN")) }
             .getOrDefault(LastPlayerScreen.MAIN),
@@ -251,8 +261,6 @@ private fun DesktopAudioPipeline.toOutputFormat(): OutputFormatUi {
         ?.let { "${"%.1f".format(Locale.ROOT, it / 1000f).removeSuffix(".0")} kHz" }
     return OutputFormatUi(
         summary = listOfNotNull(depth, rate).joinToString(" · "),
-        carriesHiRes = outputIsFloat == true || (outputBytesPerSample ?: 2) > 2 ||
-            (outputSampleRateHz ?: 0) > 48_000,
     )
 }
 
