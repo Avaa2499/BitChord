@@ -547,7 +547,9 @@ val appImage by tasks.registering(Exec::class) {
     val outputFile = outputDir.map { it.file("BitChord-$version-x86_64.AppImage") }
     inputs.dir(appDir)
     outputs.file(outputFile)
+    outputs.file(outputFile.map { File(it.asFile.absolutePath + ".zsync") })
     doFirst { outputDir.get().asFile.mkdirs() }
+    workingDir(outputDir)
     environment("ARCH", "x86_64")
     commandLine(
         "appimagetool",
