@@ -490,7 +490,12 @@ val appImageAssemble by tasks.registering {
         val appDir = target.get().asFile
         appDir.deleteRecursively()
         appDir.mkdirs()
-        sourceDir.get().copyRecursively(appDir, overwrite = true)
+        // Kotlin's File.copyRecursively() drops permission bits, silently stripping the
+        // executable bit off bin/BitChord and the bundled JRE's own binaries. `cp -a`
+        // preserves them.
+        providers.exec {
+            commandLine("cp", "-a", "${sourceDir.get().absolutePath}/.", appDir.absolutePath)
+        }.result.get().assertNormalExitValue()
 
         File(appDir, "AppRun").apply {
             writeText(
