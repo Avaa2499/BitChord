@@ -3714,7 +3714,6 @@ fun BitChordDesktopApp() {
                             onLoadMore = ::loadMoreHome,
                             loadingMore = homeLoadingMore,
                             recentlyPlayedLoading = homeRecentsLoading,
-                            leadHero = false,
                         )
                         destination == DesktopDestination.EXPLORE && selectedMoodGenre != null -> Column(Modifier.fillMaxSize()) {
                             MoodGenrePlaylistsScreen(

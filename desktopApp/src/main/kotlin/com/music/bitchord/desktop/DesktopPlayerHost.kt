@@ -14,6 +14,7 @@ import com.music.bitchord.data.settings.AudioQuality
 import com.music.bitchord.data.settings.LastPlayerScreen
 import com.music.bitchord.data.settings.MixBlend
 import com.music.bitchord.data.settings.MixTransitionView
+import com.music.bitchord.data.settings.PlayerTheme
 import com.music.bitchord.data.settings.SmartAnalysis
 import com.music.bitchord.data.settings.TransitionWindow
 import com.music.bitchord.ui.player.AudioOutputDevice
@@ -196,11 +197,15 @@ internal object DesktopPlayerSettings : PlayerSettingsSource {
     override val automixDetail = MutableStateFlow<String?>(null)
     override val smartMixView = MutableStateFlow<MixTransitionView?>(null)
     override val smartMixProgress = MutableStateFlow(0f)
+    override val smartMixPreview = MutableStateFlow<MixTransitionView?>(null)
+    override val playerTheme = MutableStateFlow(PlayerTheme.DEFAULT)
     override val lastPlayerScreen = MutableStateFlow(
         runCatching { LastPlayerScreen.valueOf(persistence.string(KEY_LAST_SCREEN, "MAIN")) }
             .getOrDefault(LastPlayerScreen.MAIN),
     )
-    override val legacyMeshGradient = MutableStateFlow(false)
+    // The desktop's own setting, not part of [PlayerSettingsSource] — unrelated to [disableBlendEffects].
+    val legacyMeshGradient = MutableStateFlow(false)
+    val mixViewOpen = MutableStateFlow(false)
     override val lyricsBlur = MutableStateFlow(true)
     override val lyricsOffsetMs = MutableStateFlow(
         persistence.int(KEY_LYRICS_OFFSET, 0).coerceIn(MIN_LYRICS_OFFSET_MS, MAX_LYRICS_OFFSET_MS),
@@ -213,6 +218,7 @@ internal object DesktopPlayerSettings : PlayerSettingsSource {
     override val prioritizeSpotifyCanvas = MutableStateFlow(false)
     override val reduceAnimation = MutableStateFlow(false)
     override val reduceDynamicBlur = MutableStateFlow(false)
+    override val disableBlendEffects = MutableStateFlow(false)
     override val showNerdStats = MutableStateFlow(false)
     override val smartAnalysis = MutableStateFlow(SmartAnalysis())
     override val smartFadeEnabled = MutableStateFlow(false)
@@ -233,6 +239,10 @@ internal object DesktopPlayerSettings : PlayerSettingsSource {
         val clamped = value.coerceIn(MIN_LYRICS_OFFSET_MS, MAX_LYRICS_OFFSET_MS)
         lyricsOffsetMs.value = clamped
         persistence.saveInt(KEY_LYRICS_OFFSET, clamped)
+    }
+
+    override fun setMixViewOpen(open: Boolean) {
+        mixViewOpen.value = open
     }
 
     private const val KEY_LAST_SCREEN = "last_player_screen"
