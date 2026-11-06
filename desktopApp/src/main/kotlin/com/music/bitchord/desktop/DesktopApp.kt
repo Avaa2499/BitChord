@@ -994,6 +994,14 @@ fun BitChordDesktopApp() {
     fun startRadio(song: Song, source: DesktopQueueSource? = null) {
         if (partyTrackChangeBlocked()) return
         val seed = canonicalSong(song).copy(radioName = song.title).withSource(source)
+        val alreadyPlaying = liveQueue.current?.videoId == seed.videoId
+        if (!alreadyPlaying) {
+            // Play the tap immediately; the station assembles behind it once YouTube answers,
+            // instead of making every tap wait on a network round trip before audio starts.
+            liveQueue = DesktopQueue(listOf(seed.asQueueEntry(QueueTier.CONTEXT)), index = 0)
+            preShuffleOrder = emptyList()
+            playCurrent()
+        }
         scope.launch {
             // AutoPlay's section behind the seed, as the phone queues a station — which is also
             // what lets a party share it: a context tail is never published.
@@ -1005,15 +1013,12 @@ fun BitChordDesktopApp() {
                 return@launch
             }
             if (partyTrackChangeBlocked()) return@launch
+            // Only splice in if the seed is still what's live — a skip or another tap since would
+            // make appending here clobber whatever the listener moved on to.
             if (liveQueue.current?.videoId == seed.videoId) {
                 liveQueue = DesktopQueue(listOf(liveQueue.current!!) + related, index = 0)
                 saveQueue()
                 partySyncHolder[0]?.onLocalIntent()
-            } else {
-                val station = listOf(seed.asQueueEntry(QueueTier.CONTEXT)) + related
-                liveQueue = if (shuffle) DesktopQueue.shuffledStartingAt(station, 0) else DesktopQueue(station, 0)
-                preShuffleOrder = if (shuffle) station.map(DesktopQueue::orderKey) else emptyList()
-                playCurrent()
             }
             DesktopTrackLog.log("radio: started a station on '${song.title}' with ${related.size} tracks")
         }
