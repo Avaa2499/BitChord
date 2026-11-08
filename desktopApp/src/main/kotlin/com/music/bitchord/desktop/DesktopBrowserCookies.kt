@@ -98,8 +98,13 @@ internal object DesktopBrowserCookies {
     fun read(profile: Profile): Result {
         if (!Files.isReadable(profile.database)) return Result.Unavailable("its cookie store cannot be read")
         val copy = runCatching {
-            Files.createTempFile("bitchord-cookies", ".sqlite").also {
-                Files.copy(profile.database, it, StandardCopyOption.REPLACE_EXISTING)
+            Files.createTempFile("bitchord-cookies", ".sqlite").also { destination ->
+                Files.copy(profile.database, destination, StandardCopyOption.REPLACE_EXISTING)
+                // Recent writes (a renewed session cookie, most of all) can still be sitting in the
+                // WAL journal rather than the main file. Without its sidecars, the copy is a stale
+                // snapshot and the sign-in intermittently looks missing even though it isn't.
+                copySidecar(profile.database, destination, "-wal")
+                copySidecar(profile.database, destination, "-shm")
             }
         }.getOrElse { return Result.Unavailable("its cookie store could not be copied: ${it.message}") }
 
@@ -115,7 +120,17 @@ internal object DesktopBrowserCookies {
             }
         } finally {
             runCatching { Files.deleteIfExists(copy) }
+            runCatching { Files.deleteIfExists(copy.resolveSibling(copy.fileName.toString() + "-wal")) }
+            runCatching { Files.deleteIfExists(copy.resolveSibling(copy.fileName.toString() + "-shm")) }
         }
+    }
+
+    /** Copies the WAL/SHM sidecar next to [database], if it exists, so the copy can be read whole. */
+    private fun copySidecar(database: Path, destination: Path, suffix: String) {
+        val source = database.resolveSibling(database.fileName.toString() + suffix)
+        if (!Files.isReadable(source)) return
+        val target = destination.resolveSibling(destination.fileName.toString() + suffix)
+        runCatching { Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING) }
     }
 
     private fun readFirefox(database: Path): Result = query(database) { connection ->
