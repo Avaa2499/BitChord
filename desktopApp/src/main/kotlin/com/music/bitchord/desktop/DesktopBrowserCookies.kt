@@ -149,7 +149,8 @@ internal object DesktopBrowserCookies {
         val cookies = LinkedHashMap<String, String>()
         connection.prepareStatement(
             "SELECT name, value FROM moz_cookies WHERE host LIKE '%youtube.com' " +
-                "AND originAttributes = '' AND expiry > strftime('%s', 'now')",
+                "AND originAttributes = '' AND expiry > strftime('%s', 'now') " +
+                "AND name NOT LIKE 'ST-%'",
         ).use { statement ->
             statement.executeQuery().use { rows ->
                 while (rows.next()) {
@@ -174,7 +175,8 @@ internal object DesktopBrowserCookies {
             var undecipherable = 0
             var appBoundSigningCookie = false
             connection.prepareStatement(
-                "SELECT host_key, name, value, encrypted_value FROM cookies WHERE host_key LIKE '%youtube.com'",
+                "SELECT host_key, name, value, encrypted_value FROM cookies WHERE host_key LIKE '%youtube.com' " +
+                    "AND name NOT LIKE 'ST-%'",
             ).use { statement ->
                 statement.executeQuery().use { rows ->
                     while (rows.next()) {
