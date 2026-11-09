@@ -3227,6 +3227,24 @@ fun BitChordDesktopApp() {
                         DesktopSignInDialog(
                             busy = signInBusy,
                             error = signInError,
+                            onGoogleSignIn = {
+                                browserSignInJob?.cancel()
+                                browserSignInJob = scope.launch {
+                                    signInError = null
+                                    signInBusy = "Sign in with Google"
+                                    try {
+                                        val cookie = DesktopGoogleSignIn.capture()
+                                        signIn(cookie, "Sign in with Google")
+                                    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                                        throw cancelled
+                                    } catch (failure: Exception) {
+                                        signInError = failure.message ?: "Could not complete sign-in."
+                                    } finally {
+                                        signInBusy = null
+                                        browserSignInJob = null
+                                    }
+                                }
+                            },
                             interactiveBrowser = interactiveSignInBrowser,
                             onBrowserSignIn = { browser ->
                                 browserSignInJob?.cancel()
