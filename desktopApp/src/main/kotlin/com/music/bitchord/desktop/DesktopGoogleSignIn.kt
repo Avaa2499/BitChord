@@ -44,13 +44,22 @@ internal object DesktopGoogleSignIn {
     }
 
     private fun build(): CefApp {
+        DesktopTrackLog.log("google sign-in: building CefApp (installDir=${dataHome()}/jcef)")
         val builder = CefAppBuilder()
         builder.setInstallDir(File(dataHome(), "jcef"))
         // GPU compositing is a common source of a black, unrendered browser window on Linux
         // without a working GL stack.
         builder.addJcefArgs("--disable-gpu")
+        builder.setProgressHandler { state, percent ->
+            DesktopTrackLog.log("google sign-in: jcef bootstrap $state ($percent%)")
+        }
         builder.setAppHandler(object : MavenCefAppHandlerAdapter() {})
-        return builder.build()
+        return try {
+            builder.build().also { DesktopTrackLog.log("google sign-in: CefApp built ok") }
+        } catch (failure: Throwable) {
+            DesktopTrackLog.log("google sign-in: CefApp build FAILED: ${failure.message}")
+            throw failure
+        }
     }
 
     private fun dataHome(): File {
@@ -66,6 +75,7 @@ internal object DesktopGoogleSignIn {
             try {
                 openWindow(result)
             } catch (failure: Exception) {
+                DesktopTrackLog.log("google sign-in: openWindow threw: ${failure.message}")
                 result.complete(Result.failure(failure))
             }
         }
@@ -73,6 +83,7 @@ internal object DesktopGoogleSignIn {
     }
 
     private fun openWindow(result: CompletableDeferred<Result<String>>) {
+        DesktopTrackLog.log("google sign-in: opening window, loading $LOGIN_URL")
         val client = app().createClient()
         val browser = client.createBrowser(LOGIN_URL, false, false)
 
@@ -87,6 +98,8 @@ internal object DesktopGoogleSignIn {
         val finished = AtomicBoolean(false)
         fun finish(outcome: Result<String>) {
             if (!finished.compareAndSet(false, true)) return
+            outcome.onFailure { DesktopTrackLog.log("google sign-in: finished with failure: ${it.message}") }
+                .onSuccess { DesktopTrackLog.log("google sign-in: finished, captured ${it.length} chars of cookie") }
             result.complete(outcome)
             SwingUtilities.invokeLater {
                 frame.isVisible = false
@@ -97,6 +110,7 @@ internal object DesktopGoogleSignIn {
 
         frame.addWindowListener(object : WindowAdapter() {
             override fun windowClosing(event: WindowEvent) {
+                DesktopTrackLog.log("google sign-in: window closed by user")
                 finish(Result.failure(CancellationException("Sign-in window was closed.")))
             }
         })
@@ -111,12 +125,27 @@ internal object DesktopGoogleSignIn {
             ) {
                 if (isLoading) return
                 val url = loadedBrowser.getURL() ?: return
+                DesktopTrackLog.log("google sign-in: load finished at $url")
                 if (!url.startsWith(MUSIC_URL)) return
-                if (pollingStarted.compareAndSet(false, true)) pollForCookies(::finish)
+                if (pollingStarted.compareAndSet(false, true)) {
+                    DesktopTrackLog.log("google sign-in: reached music.youtube.com, polling cookies")
+                    pollForCookies(::finish)
+                }
+            }
+
+            override fun onLoadError(
+                loadedBrowser: CefBrowser,
+                cefFrame: org.cef.browser.CefFrame,
+                errorCode: org.cef.handler.CefLoadHandler.ErrorCode,
+                errorText: String,
+                failedUrl: String,
+            ) {
+                DesktopTrackLog.log("google sign-in: load error $errorCode at $failedUrl: $errorText")
             }
         })
 
         frame.isVisible = true
+        DesktopTrackLog.log("google sign-in: frame visible=${frame.isVisible}, size=${frame.size}")
     }
 
     private fun pollForCookies(finish: (Result<String>) -> Unit) {
@@ -125,6 +154,10 @@ internal object DesktopGoogleSignIn {
         timer = Timer(POLL_INTERVAL_MS) {
             attempts++
             readCookies { header ->
+                DesktopTrackLog.log(
+                    "google sign-in: poll $attempts/$CAPTURE_POLLS, ${header.count { it == '=' }} cookies read, " +
+                        "hasSigningSecret=${DesktopBrowserCookies.hasSigningSecret(header)}",
+                )
                 when {
                     DesktopBrowserCookies.hasSigningSecret(header) -> {
                         timer.stop()
