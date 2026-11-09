@@ -103,8 +103,9 @@ internal object DesktopBrowserCookies {
                 // Recent writes (a renewed session cookie, most of all) can still be sitting in the
                 // WAL journal rather than the main file. Without its sidecars, the copy is a stale
                 // snapshot and the sign-in intermittently looks missing even though it isn't.
-                copySidecar(profile.database, destination, "-wal")
-                copySidecar(profile.database, destination, "-shm")
+                val wal = copySidecar(profile.database, destination, "-wal")
+                val shm = copySidecar(profile.database, destination, "-shm")
+                DesktopTrackLog.log("cookies: read ${profile.label} (wal=$wal shm=$shm)")
             }
         }.getOrElse { return Result.Unavailable("its cookie store could not be copied: ${it.message}") }
 
@@ -113,11 +114,16 @@ internal object DesktopBrowserCookies {
                 Family.FIREFOX -> readFirefox(copy)
                 Family.CHROMIUM -> readChromium(copy, profile)
             }
-            return when {
+            val cookieCount = (jar as? Result.Session)?.cookie?.split(';')?.count { it.isNotBlank() } ?: 0
+            val outcome = when {
                 jar is Result.Unavailable -> jar
                 jar is Result.Session && !hasSigningSecret(jar.cookie) -> Result.SignedOut
                 else -> jar
             }
+            DesktopTrackLog.log(
+                "cookies: ${profile.label} -> ${outcome.describe()} ($cookieCount youtube.com cookies read)",
+            )
+            return outcome
         } finally {
             runCatching { Files.deleteIfExists(copy) }
             runCatching { Files.deleteIfExists(copy.resolveSibling(copy.fileName.toString() + "-wal")) }
@@ -126,11 +132,17 @@ internal object DesktopBrowserCookies {
     }
 
     /** Copies the WAL/SHM sidecar next to [database], if it exists, so the copy can be read whole. */
-    private fun copySidecar(database: Path, destination: Path, suffix: String) {
+    private fun copySidecar(database: Path, destination: Path, suffix: String): Boolean {
         val source = database.resolveSibling(database.fileName.toString() + suffix)
-        if (!Files.isReadable(source)) return
+        if (!Files.isReadable(source)) return false
         val target = destination.resolveSibling(destination.fileName.toString() + suffix)
-        runCatching { Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING) }
+        return runCatching { Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING) }.isSuccess
+    }
+
+    private fun Result.describe(): String = when (this) {
+        is Result.Session -> "session"
+        Result.SignedOut -> "signed out"
+        is Result.Unavailable -> "unavailable (${this.reason})"
     }
 
     private fun readFirefox(database: Path): Result = query(database) { connection ->

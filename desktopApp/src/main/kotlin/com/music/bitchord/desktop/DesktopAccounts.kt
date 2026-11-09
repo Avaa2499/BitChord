@@ -192,16 +192,30 @@ internal object DesktopAccounts {
         for (profile in ordered) {
             val jar = (DesktopBrowserCookies.read(profile) as? DesktopBrowserCookies.Result.Session)?.cookie
                 ?: continue
-            val scope = DesktopYouTubeSession.adoptSessionScope(jar) ?: continue
+            val scope = DesktopYouTubeSession.adoptSessionScope(jar)
+            if (scope == null) {
+                DesktopTrackLog.log("renew: ${profile.label} had a session but it did not resolve to a channel")
+                continue
+            }
             val belongs = scope.dataSyncId == account.accountId ||
                 (account.sourceProfile != null && profile.database.toString() == account.sourceProfile)
-            if (!belongs) continue
+            if (!belongs) {
+                DesktopTrackLog.log(
+                    "renew: ${profile.label} is signed in as a different account than " +
+                        "'${account.email.ifBlank { account.name }}', skipping",
+                )
+                continue
+            }
             DesktopYouTubeAuth.adopt(scope)
             writeCookie(account.accountId, jar)
             rememberSource(account, profile.database.toString())
             DesktopTrackLog.log("renewed the session from ${profile.label}")
             return scope
         }
+        DesktopTrackLog.log(
+            "renew: no browser profile had a live session for " +
+                "'${account.email.ifBlank { account.name }}' (checked ${candidates.size})",
+        )
         return null
     }
 
