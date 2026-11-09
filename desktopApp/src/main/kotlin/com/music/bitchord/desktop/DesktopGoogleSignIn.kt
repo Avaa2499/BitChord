@@ -46,6 +46,10 @@ internal object DesktopGoogleSignIn {
     private fun build(): CefApp {
         val builder = CefAppBuilder()
         builder.setInstallDir(File(dataHome(), "jcef"))
+        // The AppImage can't ship CEF's setuid sandbox helper, and GPU compositing is a common
+        // source of a black, unrendered browser window on Linux without a working GL stack.
+        builder.addJcefArgs("--no-sandbox")
+        builder.addJcefArgs("--disable-gpu")
         builder.setAppHandler(object : MavenCefAppHandlerAdapter() {})
         return builder.build()
     }
