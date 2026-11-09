@@ -50,6 +50,10 @@ internal object DesktopGoogleSignIn {
         // GPU compositing is a common source of a black, unrendered browser window on Linux
         // without a working GL stack.
         builder.addJcefArgs("--disable-gpu")
+        // AppImages can't ship a setuid-root chrome-sandbox helper, so the sandboxed renderer
+        // subprocess fails IPC setup ("Failed global descriptor lookup") and never paints —
+        // confirmed from desktop.log. Scoped to this first-party Google sign-in browser only.
+        builder.addJcefArgs("--no-sandbox")
         builder.setProgressHandler { state, percent ->
             DesktopTrackLog.log("google sign-in: jcef bootstrap $state ($percent%)")
         }
