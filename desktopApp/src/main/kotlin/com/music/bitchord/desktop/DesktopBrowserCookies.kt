@@ -148,7 +148,8 @@ internal object DesktopBrowserCookies {
     private fun readFirefox(database: Path): Result = query(database) { connection ->
         val cookies = LinkedHashMap<String, String>()
         connection.prepareStatement(
-            "SELECT name, value FROM moz_cookies WHERE host LIKE '%youtube.com' AND originAttributes = ''",
+            "SELECT name, value FROM moz_cookies WHERE host LIKE '%youtube.com' " +
+                "AND originAttributes = '' AND expiry > strftime('%s', 'now')",
         ).use { statement ->
             statement.executeQuery().use { rows ->
                 while (rows.next()) {
@@ -354,6 +355,7 @@ internal object DesktopBrowserCookies {
         "LibreWolf" to ".var/app/io.gitlab.librewolf-community/.librewolf",
         "Waterfox" to ".waterfox",
         "Zen" to ".zen",
+        "Floorp" to ".floorp",
     )
 
     /** Browser to profile root and the keyring name it files its key under. */
@@ -378,6 +380,7 @@ internal object DesktopBrowserCookies {
             "LibreWolf" to roaming.resolve("librewolf/Profiles"),
             "Waterfox" to roaming.resolve("Waterfox/Profiles"),
             "Zen" to roaming.resolve("zen/Profiles"),
+            "Floorp" to roaming.resolve("Floorp/Profiles"),
         )
     } else {
         LINUX_FIREFOX_ROOTS.map { (name, relative) -> name to home.resolve(relative) }
