@@ -118,6 +118,10 @@ dependencies {
     implementation("com.github.hypfvieh:dbus-java-core:5.2.0")
     implementation("com.github.hypfvieh:dbus-java-transport-junixsocket:5.2.0")
 
+    // Native sign-in: BitChord drives the real Google login page itself in an embedded Chromium,
+    // instead of scraping an external browser's cookie store. See DesktopGoogleSignIn.
+    implementation("me.friwi:jcefmaven:146.0.10")
+
     // Same URL deobfuscation helper used by Android's StreamResolver.
     implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.3")
 
