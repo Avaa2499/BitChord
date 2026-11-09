@@ -270,6 +270,7 @@ private fun DesktopSelectorAction(
 /** Signing in: a browser to take the session from, or the cookie by hand. */
 @Composable
 internal fun DesktopSignInDialog(
+    onGoogleSignIn: () -> Unit,
     interactiveBrowser: DesktopBrowserSignIn.Browser?,
     onBrowserSignIn: (DesktopBrowserSignIn.Browser) -> Unit,
     onImport: (DesktopBrowserCookies.Profile) -> Unit,
@@ -278,6 +279,7 @@ internal fun DesktopSignInDialog(
     error: String?,
     onDismiss: () -> Unit,
 ) {
+    val googleSignInLabel = "Sign in with Google"
     var profiles by remember { mutableStateOf<List<DesktopBrowserCookies.Profile>?>(null) }
     var pasting by remember { mutableStateOf(false) }
     var pasted by remember { mutableStateOf("") }
@@ -387,6 +389,32 @@ internal fun DesktopSignInDialog(
                 }
                 else -> LazyColumn(Modifier.heightIn(max = 320.dp)) {
                     val found = profiles.orEmpty()
+                    item(key = "google-sign-in") {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 62.dp)
+                                .clickable(enabled = busy == null) { onGoogleSignIn() }
+                                .padding(horizontal = 22.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(googleSignInLabel, color = Color.White)
+                                Text(
+                                    if (busy == googleSignInLabel) {
+                                        "Waiting for sign-in to finish…"
+                                    } else {
+                                        "Opens Google's sign-in page inside BitChord"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = DesktopSecondary,
+                                )
+                            }
+                            if (busy == googleSignInLabel) {
+                                CircularProgressIndicator(color = DesktopAccent, modifier = Modifier.size(14.dp))
+                            }
+                        }
+                    }
                     interactiveBrowser?.let { browser ->
                         item(key = "interactive-browser") {
                             Row(
